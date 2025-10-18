@@ -1577,10 +1577,10 @@
             <div class="stat-grid" style="margin-top:.75rem; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
                 <div class="stat-card"><div class="stat-label">Total P&L</div><div class="stat-value" id="statTotalPnL">$0.00</div></div>
                 <div class="stat-card"><div class="stat-label">Profit Factor</div><div class="stat-value" id="statProfitFactor">0.00</div></div>
-                <div class="stat-card"><div class="stat-label">Avg. Winning Day</div><div class="stat-value profit" id="statAvgWin">$0.00</div></div>
-                <div class="stat-card"><div class="stat-label">Avg. Losing Day</div><div class="stat-value loss" id="statAvgLoss">$0.00</div></div>
-                <div class="stat-card"><div class="stat-label">Best Day</div><div class="stat-value profit" id="statBestTrade">$0.00</div></div>
-                <div class="stat-card"><div class="stat-label">Worst Day</div><div class="stat-value loss" id="statWorstTrade">$0.00</div></div>
+                <div class="stat-card"><div class="stat-label">Avg. Winning Trade</div><div class="stat-value profit" id="statAvgWin">$0.00</div></div>
+                <div class="stat-card"><div class="stat-label">Avg. Losing Trade</div><div class="stat-value loss" id="statAvgLoss">$0.00</div></div>
+                <div class="stat-card"><div class="stat-label">Best Trade</div><div class="stat-value profit" id="statBestTrade">$0.00</div></div>
+                <div class="stat-card"><div class="stat-label">Worst Trade</div><div class="stat-value loss" id="statWorstTrade">$0.00</div></div>
             </div>
 
             <div id="statsCharts" class="charts-grid">
@@ -1589,7 +1589,7 @@
                     <canvas id="equityCanvas" height="180"></canvas>
                 </div>
                 <div class="chart-card">
-                    <div class="muted" style="margin-bottom:.4rem">Daily Trades</div>
+                    <div class="muted" style="margin-bottom:.4rem">Trades per Day</div>
                     <canvas id="tradesBarCanvas" height="180"></canvas>
                 </div>
                 <div class="chart-card">
@@ -2052,7 +2052,6 @@ function val(id, dflt){ const el = $(id); return el && typeof el.value !== 'unde
 /* State */
 let currentUser = null;
 let trades = []; // journal entries (type: 'journal')
-let dailyPnL = {}; // DEPRECATED: This will now be computed on the fly.
 let selectedDateKey = null;
 let currentPeriod = 'currentMonth';
 let meditationTimer = null;
@@ -2138,6 +2137,12 @@ function buildUserData(){
 function loadUserData(email){
   const all = getAllUserData();
   const base = all[email] || { trades: [] };
+  
+  // *** FIX: Remove the deprecated dailyPnL property if it exists from old data ***
+  if (base.dailyPnL) {
+      delete base.dailyPnL;
+  }
+
   const defaultProfile = { avatarData: null, mindfulnessJournal: '', isPublic: true, friends: [], friendRequests: [] };
   base.profile = Object.assign(defaultProfile, base.profile || {});
   base.colors = base.colors || { accent: null, success: null, danger: null };
@@ -2546,7 +2551,7 @@ function loadTheme(){
 
 /* Journal */
 function clearJournalForm(){
-  const ids = ['jSymbol','jEntry','jExit','jSize','tradeNotes','tradeDate'];
+  const ids = ['jSymbol','jEntry','jExit','jSize','tradeNotes'];
   ids.forEach(id => { const el = $(id); if(el) el.value = ''; });
   const side = $('jSide'); if(side) side.value='long';
   const out = $('tradeOutcome'); if(out) out.value='win';
@@ -4051,18 +4056,21 @@ function initializeSoundscapes() {
 }
 
 function playZenSound(soundName) {
+    // Stop all other sounds first
     Object.keys(soundscapes).forEach(key => {
         const sound = soundscapes[key];
         if (!sound.paused) {
             sound.pause();
-            sound.currentTime = 0;
+            sound.currentTime = 0; // Reset for next play
         }
     });
 
+    // Play the selected sound
     if (soundName !== 'none' && soundscapes[soundName]) {
         soundscapes[soundName].play().catch(e => console.error("Audio play failed:", e));
     }
 
+    // Update UI
     document.querySelectorAll('.sound-btn').forEach(b => b.classList.remove('active'));
     if (soundName !== 'none') {
       const activeBtn = document.querySelector(`.sound-btn[data-sound="${soundName}"]`);
@@ -4167,4 +4175,26 @@ function initBackgroundCanvas(){
   const count = Math.max(42, Math.floor((w*h) / 12000));
   function rand(a,b){ return Math.random() * (b-a) + a; }
   for(let i=0;i<count;i++){
-    particles.push({ x: rand(0,w), y: rand(0,h), r: rand(.6,2.2), vx: rand(-.10,.10), vy: rand(-.05,.05), hue: rand(185,205),
+    particles.push({ x: rand(0,w), y: rand(0,h), r: rand(.6,2.2), vx: rand(-.10,.10), vy: rand(-.05,.05), hue: rand(185,205), a: rand(.06,.16) });
+  }
+  function draw(){
+    ctx.clearRect(0,0,w,h);
+    particles.forEach(p => {
+      p.x += p.vx; p.y += p.vy;
+      if(p.x < -20) p.x = w + 20;
+      if(p.x > w + 20) p.x = -20;
+      if(p.y < -20) p.y = h + 20;
+      if(p.y > h + 20) p.y = -20;
+      ctx.beginPath();
+      ctx.fillStyle = `hsla(${p.hue},80%,60%,${p.a})`;
+      ctx.arc(p.x, p.y, p.r, 0, Math.PI*2);
+      ctx.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+  window.addEventListener('resize', () => { w = canvas.width = innerWidth; h = canvas.height = innerHeight; });
+}
+
+/* Homepage Animations */
+function initHomepageAnimations()
